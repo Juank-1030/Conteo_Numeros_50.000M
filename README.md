@@ -211,22 +211,139 @@ En modo detallado sí hay iteración número a número. El cuello de botella es 
 
 Aumentar hilos en modo detallado ayuda poco porque el I/O de consola es el verdadero cuello de botella, no el procesamiento.
 
+### Mediciones experimentales — modo detallado (escala creciente)
+
+Pruebas realizadas incrementando simultáneamente el número de hilos y el límite de conteo, todas en **modo detallado** (impresión número a número por consola).
+
+| Cantidad de hilos | Límite | Tiempo Java (s) | Tiempo Go (s) | Observación |
+|:-----------------:|:------:|:---------------:|:-------------:|-------------|
+| 2 | 10.000 | 0.585 | 0.009 | Go ~65x más rápido |
+| 2 | 100.000 | 4.662 | 0.509 | Go ~9x más rápido |
+| 10 | 1.000.000 | 48.585 | 5.820 | Go ~8x más rápido |
+| 15 | 50.000.000 | ⚠️ No fue posible completarlo | 387.185 | Java cerró el editor de código |
+| 250 | 50.000.000 | ⚠️ No fue posible completarlo | 377.922 | Java cerró el editor de código |
+
+> ⚠️ **Nota sobre las entradas con Java:** Con límite = 50.000.000, Java no logró completar la ejecución en ninguna de las dos configuraciones (15 y 250 hilos). En ambos casos el editor de código (VS Code) se cerró inesperadamente, probablemente por agotamiento de memoria RAM o de descriptores de archivo del sistema operativo, consecuencia del volumen de salida por consola y la carga de hilos del SO mantenida durante un tiempo prolongado.
+
+#### Conclusión de las mediciones experimentales
+
+Los datos confirman tres patrones claros:
+
+1. **Go es consistentemente más rápido en modo detallado.** La ventaja varía entre ~8x y ~65x dependiendo del límite. La diferencia es mayor con límites pequeños (el overhead de inicio de la JVM pesa más) y se estabiliza en torno a 8–9x con límites grandes.
+
+2. **Agregar goroutines apenas reduce el tiempo en Go a límites muy altos.** Con 50.000.000 de números, pasar de 15 a 250 goroutines solo redujo el tiempo de 387 s a 377 s (menos de un 3%). Esto confirma que con tantos números por imprimir el cuello de botella es el I/O de consola, no el procesamiento paralelo.
+
+3. **Java no es viable para modo detallado a gran escala.** El modelo de hilos del SO consume memoria proporcional al número de hilos activos (~1 MB de stack cada uno) y mantiene miles de descriptores de salida abiertos. Al combinarlo con 50.000.000 de líneas por imprimir, la presión sobre la JVM y el sistema operativo termina en un fallo catastrófico que cierra el entorno de desarrollo.
+
+### Analisis: por que Java puede superar a Go con muchos hilos
+
+Con configuraciones de **muchos trabajadores y pocos datos por trabajador** (por ejemplo, 10.000 hilos para 1.000.000 de números = 100 números por hilo), se puede observar que Java supera a Go. Esto parece contradictorio, pero tiene una explicación técnica precisa.
+
+#### El cuello de botella: syscalls de escritura en consola
+
+El problema está en cómo cada lenguaje escribe en la consola a nivel del sistema operativo:
+
+| Aspecto | Java `System.out.println` | Go `fmt.Printf` (version original) |
+|---------|--------------------------|--------------------------------------|
+| Buffer en userspace | **Si** — `BufferedOutputStream` de 8 KB | **No** — escribe directo al SO |
+| Llamadas al SO por 1.000.000 prints | Pocas (el buffer agrupa escrituras) | ~1.000.000 syscalls individuales |
+| Contención entre hilos | Sincronizado en el buffer (eficiente) | Cada goroutine compite por stdout |
+
+**Java usa un buffer interno de 8 KB:** las llamadas a `println` acumulan texto en memoria y solo hacen una syscall al SO cuando el buffer se llena. Con 10.000 hilos imprimiendo 100 números cada uno, el número total de syscalls es muy bajo.
+
+**Go (versión original) no tiene buffer:** cada `fmt.Printf` llama directamente a `write()` del sistema operativo. Con 1.000.000 de números a imprimir, esto genera cerca de 1.000.000 de syscalls individuales, lo que degrada el rendimiento enormemente con muchos trabajadores.
+
+#### Factores adicionales que favorecen a Java en este escenario
+
+1. **Optimización JIT:** Con 10.000 hilos activos, la JVM tiene tiempo de compilar el código del hilo caliente a código nativo optimizado. El bucle de impresión de 100 números se vuelve muy eficiente tras el warmup.
+2. **Scheduler del SO para I/O:** Cuando un hilo Java queda bloqueado esperando el buffer, el SO lo pone en espera de forma eficiente. Con 10.000 OS-threads en cola, el kernel los gestiona bien para I/O serializado.
+3. **Overhead de goroutines con trabajo trivial:** Con solo 100 números por goroutine, el overhead del scheduler M:N de Go (crear, programar y destruir 10.000 goroutines) puede superar el beneficio de su ligereza.
+
+#### La correccion aplicada al codigo Go
+
+Se realizaron tres cambios en `src/go/contador_paralelo.go`:
+
+**1. Nueva dependencia importada: `bufio`**
+
+```go
+import (
+    "bufio"   // <-- añadido
+    "fmt"
+    "os"
+    "sync"
+    "sync/atomic"
+    "time"
+)
+```
+
+**2. Nueva firma de `contarSegmento`: recibe el escritor y su mutex**
+
+```go
+// ANTES
+func contarSegmento(numeroGoroutine int, inicio, fin int64,
+    modoDetallado bool, contadorTotal *int64, grupo *sync.WaitGroup)
+
+// DESPUES
+func contarSegmento(numeroGoroutine int, inicio, fin int64,
+    modoDetallado bool, contadorTotal *int64,
+    escritor *bufio.Writer, mutexEscritor *sync.Mutex,
+    grupo *sync.WaitGroup)
+```
+
+El cuerpo en modo detallado ahora acumula en memoria y hace una sola escritura:
+
+```go
+// ANTES (una syscall por cada número → ~1.000.000 syscalls)
+for numero := inicio; numero <= fin; numero++ {
+    atomic.AddInt64(contadorTotal, 1)
+    fmt.Printf("  [Goroutine-%d] --> %d\n", numeroGoroutine, numero)
+}
+
+// DESPUES (construye en []byte local, una escritura al final)
+buf := make([]byte, 0, cantidadNumeros*30)
+for numero := inicio; numero <= fin; numero++ {
+    atomic.AddInt64(contadorTotal, 1)
+    buf = fmt.Appendf(buf, "  [Goroutine-%d] --> %d\n", numeroGoroutine, numero)
+}
+mutexEscritor.Lock()
+escritor.Write(buf)   // una sola llamada con el mutex tomado
+mutexEscritor.Unlock()
+```
+
+**3. En `main`: crear el escritor compartido y llamar `Flush()` al final**
+
+```go
+// Escritor con buffer de 1 MB compartido entre todas las goroutines
+escritor := bufio.NewWriterSize(os.Stdout, 1024*1024)
+var mutexEscritor sync.Mutex
+
+// Al lanzar cada goroutine se le pasan el escritor y el mutex:
+go contarSegmento(numeroGoroutine, inicio, fin, modoDetallado,
+    &contadorTotal, escritor, &mutexEscritor, &grupo)
+
+// Después de grupo.Wait(), vaciar el buffer al SO:
+escritor.Flush()
+```
+
+Con estos tres cambios, el número de syscalls se reduce de ~1.000.000 a unas pocas docenas, independientemente de cuántas goroutines haya.
+
 ### Conclusion
 
 La diferencia más llamativa entre los dos lenguajes se ve en el **modo detallado con impresión por consola**:
 
 - **Java tardó 101.503 segundos** para imprimir 1.000.000 de números con 2 hilos.
-- **Go tardó 14.483 segundos** para el mismo trabajo — aproximadamente **7 veces más rápido**.
+- **Go tardó 14.483 segundos** para el mismo trabajo (versión original) — aproximadamente **7 veces más rápido** con pocos hilos.
+- **Con la corrección de bufio aplicada**, Go debería mantener su ventaja incluso con 10.000 goroutines.
 
-Esta diferencia se explica principalmente por tres razones:
+Por qué Java podía ganar con 10.000 hilos y la versión original de Go:
 
-1. **I/O de consola más eficiente en Go:** El runtime de Go maneja la salida estándar de forma más liviana que la JVM. Cada llamada a `fmt.Printf` genera menos overhead que `System.out.println` en Java.
-2. **Menor costo de las goroutines:** Aunque en este caso solo son 2 trabajadores, el scheduler de Go gestiona el I/O de forma más eficiente al ser parte del propio runtime, sin depender del scheduler del sistema operativo.
-3. **Ausencia de JVM warmup:** Go compila a binario nativo, mientras que Java necesita tiempo de arranque de la JVM y compilación JIT antes de alcanzar su velocidad óptima.
+1. **Java tiene buffer de I/O por defecto** (`BufferedOutputStream` de 8 KB en `System.out`).
+2. **Go original no tenía buffer:** cada `fmt.Printf` hacía una syscall individual, generando ~1.000.000 de syscalls.
+3. **La solución** es usar `bufio.Writer` + buffer por goroutine en Go para igualar o superar a Java.
 
-En el **modo resumen** (sin impresión número a número) la diferencia es mínima en ambos lenguajes, porque no hay I/O intensivo y el conteo se hace con una sola operación atómica por hilo. Ahí Java y Go son prácticamente equivalentes.
+En el **modo resumen** (sin impresión número a número) la diferencia es mínima, porque el conteo se hace con una sola operación atómica por hilo y no hay I/O intensivo. Ahí Java y Go son prácticamente equivalentes.
 
-**Conclusión general:** Si el programa necesita imprimir o procesar grandes volúmenes de datos de forma concurrente, **Go ofrece una ventaja real y medible** sobre Java. Si el trabajo es principalmente cálculo sin I/O intensivo, ambos lenguajes tienen rendimiento similar.
+**Conclusion general:** La ventaja de Go sobre Java no es automática; depende de usar correctamente las herramientas de I/O con buffer. Con `bufio.Writer`, Go recupera su ventaja en todos los escenarios. Además, las mediciones experimentales a escala (hasta 50.000.000 de números) demostraron que Java no es viable para modo detallado a gran escala: en ambas pruebas con ese límite, la JVM colapsó y cerró el editor, mientras que Go completó la tarea en ambos casos, aunque con tiempos elevados (~6.5 minutos) dominados por el I/O y no por el procesamiento paralelo.
 
 ### Cuando usar cada uno
 

@@ -3,9 +3,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ContadorParalelo {
 
-    // ---------------------------------------------------------------
     // Lectura y validación de un número ingresado por el usuario
-    // ---------------------------------------------------------------
+
     static long pedirNumero(Scanner teclado, String mensaje, long minimo, long maximo) {
         System.out.print(mensaje);
         long valor = teclado.nextLong();
@@ -18,9 +17,8 @@ public class ContadorParalelo {
         return valor;
     }
 
-    // ---------------------------------------------------------------
     // Trabajo que realiza cada hilo: contar su segmento asignado
-    // ---------------------------------------------------------------
+
     static void contarSegmento(int numeroHilo, long inicio, long fin,
             boolean modoDetallado, AtomicLong contadorTotal) {
 
