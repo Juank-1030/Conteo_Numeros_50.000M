@@ -10,7 +10,7 @@ import (
 )
 
 // ---------------------------------------------------------------
-// Lectura y validación de un número ingresado por el usuario
+// Read and validate a number entered by the user
 // ---------------------------------------------------------------
 func pedirNumero(mensaje string, minimo, maximo int64) int64 {
 	var valor int64
@@ -31,19 +31,19 @@ func pedirNumero(mensaje string, minimo, maximo int64) int64 {
 }
 
 // ---------------------------------------------------------------
-// Trabajo que realiza cada goroutine: contar su segmento asignado
+// Work performed by each goroutine: count its assigned segment
 //
-// NOTA: Se usa un bufio.Writer protegido por mutex en lugar de
-// fmt.Printf directo a os.Stdout.
+// NOTE: A mutex-protected bufio.Writer is used instead of
+// fmt.Printf directly to os.Stdout.
 //
-// ¿Por qué?
-// fmt.Printf en Go no tiene buffer en userspace: cada llamada hace
-// una syscall write() individual al sistema operativo. Con millones
-// de números impresos, eso genera millones de syscalls y es muy lento.
+// Why?
+// fmt.Printf in Go has no userspace buffer: each call makes
+// an individual write() syscall to the OS. With millions of
+// numbers printed, this generates millions of syscalls and is very slow.
 //
-// bufio.Writer acumula los textos en un buffer de memoria (4 KB por
-// defecto) y solo llama al SO cuando el buffer se llena o se hace
-// Flush() explícito. Esto reduce drásticamente el número de syscalls.
+// bufio.Writer accumulates text in a memory buffer (4 KB by
+// default) and only calls the OS when the buffer fills or an
+// explicit Flush() is made. This drastically reduces the number of syscalls.
 // ---------------------------------------------------------------
 func contarSegmento(numeroGoroutine int, inicio, fin int64,
 	modoDetallado bool, contadorTotal *int64,
@@ -55,19 +55,19 @@ func contarSegmento(numeroGoroutine int, inicio, fin int64,
 	cantidadNumeros := fin - inicio + 1
 
 	if modoDetallado {
-		// Construir toda la salida de esta goroutine en memoria
-		// antes de escribir, para minimizar la contención del mutex.
+		// Build all output for this goroutine in memory
+		// before writing, to minimize mutex contention.
 		buf := make([]byte, 0, cantidadNumeros*30)
 		for numero := inicio; numero <= fin; numero++ {
 			atomic.AddInt64(contadorTotal, 1)
 			buf = fmt.Appendf(buf, "  [Goroutine-%d] --> %d\n", numeroGoroutine, numero)
 		}
-		// Una sola escritura con el mutex tomado
+		// Single write with the mutex held
 		mutexEscritor.Lock()
 		escritor.Write(buf)
 		mutexEscritor.Unlock()
 	} else {
-		// Suma el bloque completo de una sola vez (modo rápido)
+		// Add the complete block at once (fast mode)
 		atomic.AddInt64(contadorTotal, cantidadNumeros)
 		mutexEscritor.Lock()
 		fmt.Fprintf(escritor, "  Goroutine-%d: del %d al %d  (%d números)\n",
@@ -77,33 +77,33 @@ func contarSegmento(numeroGoroutine int, inicio, fin int64,
 }
 
 // ---------------------------------------------------------------
-// Punto de entrada del programa
+// Program entry point
 // ---------------------------------------------------------------
 func main() {
 
-	// 1. Leer parámetros del usuario
+	// 1. Read user parameters
 	numeroFinal := pedirNumero("Número final (1 - 50.000.000.000): ", 1, 50_000_000_000)
 	cantidadGoroutines := int(pedirNumero("Cantidad de goroutines: ", 1, 1_000_000))
 	modo := pedirNumero("Modo (1 = resumen | 2 = número a número): ", 1, 2)
 	modoDetallado := modo == 2
 
-	// 2. Calcular el tamaño de cada segmento
+	// 2. Calculate the size of each segment
 	tamanoSegmento := numeroFinal / int64(cantidadGoroutines)
 
-	// 3. Contador compartido entre todas las goroutines (operación atómica)
+	// 3. Shared counter between all goroutines (atomic operation)
 	var contadorTotal int64 = 0
 
-	// 4. Escritor con buffer: acumula salida en memoria y reduce syscalls al SO
-	escritor := bufio.NewWriterSize(os.Stdout, 1024*1024) // buffer de 1 MB
+	// 4. Buffered writer: accumulates output in memory and reduces OS syscalls
+	escritor := bufio.NewWriterSize(os.Stdout, 1024*1024) // 1 MB buffer
 	var mutexEscritor sync.Mutex
 
 	fmt.Printf("\nContando del 1 al %d usando %d goroutine(s)...\n\n",
 		numeroFinal, cantidadGoroutines)
 
-	// 5. Registrar el tiempo de inicio
+	// 5. Record the start time
 	tiempoInicio := time.Now()
 
-	// 6. Crear y arrancar cada goroutine
+	// 6. Create and start each goroutine
 	var grupo sync.WaitGroup
 
 	for i := 0; i < cantidadGoroutines; i++ {
@@ -114,7 +114,7 @@ func main() {
 
 		var fin int64
 		if i == cantidadGoroutines-1 {
-			fin = numeroFinal // El último toma el remanente
+			fin = numeroFinal // Last goroutine takes the remainder
 		} else {
 			fin = int64(i+1) * tamanoSegmento
 		}
@@ -123,18 +123,18 @@ func main() {
 			&contadorTotal, escritor, &mutexEscritor, &grupo)
 	}
 
-	// 7. Esperar a que todas las goroutines terminen
+	// 7. Wait for all goroutines to finish
 	grupo.Wait()
 
-	// 8. Vaciar el buffer: escribir al SO todo lo que quedó acumulado
+	// 8. Flush the buffer: write all accumulated output to the OS
 	escritor.Flush()
 
-	// 9. Calcular el tiempo total transcurrido
+	// 9. Calculate total elapsed time
 	duracion := time.Since(tiempoInicio)
 	milisegundos := duracion.Milliseconds()
 	segundos := duracion.Seconds()
 
-	// 10. Mostrar el resultado final
+	// 10. Show the final result
 	fmt.Println()
 	fmt.Println("--- Resultado ---")
 	fmt.Printf("Total contado  : %d\n", contadorTotal)

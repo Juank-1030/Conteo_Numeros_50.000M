@@ -2,272 +2,272 @@
 
 # ContadorParalelo
 
-### Conteo de Números hasta 50.000 Millones — Java & Go
+### Counting Numbers up to 50 Billion — Java & Go
 
-> Implementación del mismo algoritmo en dos lenguajes: divide el rango `[1, límite]`
-> en segmentos iguales, asigna cada segmento a un hilo o goroutine independiente,
-> y garantiza un conteo correcto usando operaciones atómicas sin bloqueos (CAS).
+> Implementation of the same algorithm in two languages: divides the range `[1, limit]`
+> into equal segments, assigns each segment to an independent thread or goroutine,
+> and guarantees correct counting using lock-free atomic operations (CAS).
 
 ---
 
 ![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8?style=for-the-badge&logo=go&logoColor=white)
-![Threads](https://img.shields.io/badge/Concurrencia-Threads%20%7C%20Goroutines-FF6B35?style=for-the-badge)
-![AtomicLong](https://img.shields.io/badge/Conteo-AtomicLong%20%7C%20sync%2Fatomic-blueviolet?style=for-the-badge)
+![Threads](https://img.shields.io/badge/Concurrency-Threads%20%7C%20Goroutines-FF6B35?style=for-the-badge)
+![AtomicLong](https://img.shields.io/badge/Count-AtomicLong%20%7C%20sync%2Fatomic-blueviolet?style=for-the-badge)
 
 </div>
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
-1. [Descripcion del programa](#1-descripcion-del-programa)
-2. [Tecnologias utilizadas](#2-tecnologias-utilizadas)
+1. [Program description](#1-program-description)
+2. [Technologies used](#2-technologies-used)
    - [2.1 Java](#21-java)
    - [2.2 Go](#22-go)
-3. [Como funciona la concurrencia](#3-como-funciona-la-concurrencia)
-   - [3.1 Division del rango](#31-division-del-rango)
-   - [3.2 Hilos vs Goroutines](#32-hilos-vs-goroutines)
-   - [3.3 Conteo atomico sin bloqueos](#33-conteo-atomico-sin-bloqueos)
-   - [3.4 Esperar a que todos terminen](#34-esperar-a-que-todos-terminen)
-4. [Funciones de cada version](#4-funciones-de-cada-version)
-5. [Tabla comparativa Java vs Go](#5-tabla-comparativa-java-vs-go)
-6. [Estructura del proyecto](#6-estructura-del-proyecto)
-7. [Compilar y ejecutar](#7-compilar-y-ejecutar)
-   - [7.1 Script principal run.bat](#71-script-principal-runbat)
-   - [7.2 Java manualmente](#72-java-manualmente)
-   - [7.3 Go manualmente](#73-go-manualmente)
-8. [Parametros del programa](#8-parametros-del-programa)
-9. [Ejemplos de salida](#9-ejemplos-de-salida)
-   - [9.1 Modo resumen](#91-modo-resumen)
-   - [9.2 Modo detallado](#92-modo-detallado)
+3. [How concurrency works](#3-how-concurrency-works)
+   - [3.1 Range division](#31-range-division)
+   - [3.2 Threads vs Goroutines](#32-threads-vs-goroutines)
+   - [3.3 Lock-free atomic counting](#33-lock-free-atomic-counting)
+   - [3.4 Waiting for all workers to finish](#34-waiting-for-all-workers-to-finish)
+4. [Functions in each version](#4-functions-in-each-version)
+5. [Java vs Go comparison table](#5-java-vs-go-comparison-table)
+6. [Project structure](#6-project-structure)
+7. [Build and run](#7-build-and-run)
+   - [7.1 Main script run.bat](#71-main-script-runbat)
+   - [7.2 Java manually](#72-java-manually)
+   - [7.3 Go manually](#73-go-manually)
+8. [Program parameters](#8-program-parameters)
+9. [Output examples](#9-output-examples)
+   - [9.1 Summary mode](#91-summary-mode)
+   - [9.2 Detailed mode](#92-detailed-mode)
 
 ---
 
-## 1. Descripcion del programa
+## 1. Program description
 
-El programa recibe tres datos del usuario: un número límite, la cantidad de hilos (o goroutines en Go) y el modo de visualización. Con eso, divide el rango `[1, límite]` en partes iguales y le asigna cada parte a un trabajador independiente. Todos corren al mismo tiempo y al final se muestra cuántos números se contaron y cuánto tardó.
+The program receives three inputs from the user: a limit number, the number of threads (or goroutines in Go), and the display mode. It then divides the range `[1, limit]` into equal parts and assigns each part to an independent worker. All workers run simultaneously, and at the end it shows how many numbers were counted and how long it took.
 
-La misma lógica está implementada en **Java** y en **Go** para poder comparar cómo cada lenguaje maneja la concurrencia.
+The same logic is implemented in both **Java** and **Go** to compare how each language handles concurrency.
 
-| Qué hace | Cómo lo logra |
+| What it does | How it achieves it |
 |----------|--------------|
-| Contar números de 1 hasta 50.000 millones | Divide el rango entre N hilos/goroutines en paralelo |
-| Evitar que dos hilos escriban al mismo tiempo | Usa operaciones atómicas CAS (sin `synchronized` ni `mutex`) |
-| Ofrecer dos modos de visualización | Modo resumen (una línea por hilo) y modo detallado (número a número) |
-| Medir el tiempo real de ejecución | Registra el tiempo antes de arrancar los hilos y al terminar todos |
+| Count numbers from 1 to 50 billion | Divides the range among N threads/goroutines in parallel |
+| Prevent two threads from writing at the same time | Uses CAS atomic operations (no `synchronized` or `mutex`) |
+| Offer two display modes | Summary mode (one line per thread) and detailed mode (number by number) |
+| Measure real execution time | Records time before threads start and after all finish |
 
 ---
 
-## 2. Tecnologias utilizadas
+## 2. Technologies used
 
 ### 2.1 Java
 
-| Clase / API | Paquete | Para qué se usa |
+| Class / API | Package | Purpose |
 |-------------|---------|-----------------|
-| `Thread` | `java.lang` | Crear y arrancar cada hilo del sistema operativo |
-| `AtomicLong` | `java.util.concurrent.atomic` | Contador compartido entre hilos sin necesidad de `synchronized` |
-| `Scanner` | `java.util` | Leer los parámetros que ingresa el usuario por consola |
-| `System.currentTimeMillis()` | `java.lang` | Medir cuánto tiempo tarda la ejecución en milisegundos |
+| `Thread` | `java.lang` | Create and start each OS thread |
+| `AtomicLong` | `java.util.concurrent.atomic` | Shared counter between threads without `synchronized` |
+| `Scanner` | `java.util` | Read user parameters from console |
+| `System.currentTimeMillis()` | `java.lang` | Measure execution time in milliseconds |
 
-> Sin dependencias externas — usa únicamente el JDK estándar de Java.
+> No external dependencies — uses only the standard JDK.
 
 ### 2.2 Go
 
-| Paquete | Elemento | Para qué se usa |
+| Package | Element | Purpose |
 |---------|----------|-----------------|
-| `sync` | `WaitGroup` | Esperar a que todas las goroutines terminen antes de mostrar el resultado |
-| `sync/atomic` | `AddInt64()` | Contador compartido entre goroutines sin necesidad de mutex |
-| `time` | `Now()`, `Since()` | Medir cuánto tiempo tarda la ejecución |
-| `fmt` | `Scan()`, `Printf()` | Leer entradas del usuario e imprimir resultados |
-| `os` | `Exit()` | Terminar el programa si el usuario ingresa un valor inválido |
+| `sync` | `WaitGroup` | Wait for all goroutines to finish before showing the result |
+| `sync/atomic` | `AddInt64()` | Shared counter between goroutines without mutex |
+| `time` | `Now()`, `Since()` | Measure execution time |
+| `fmt` | `Scan()`, `Printf()` | Read user input and print results |
+| `os` | `Exit()` | Terminate the program if the user enters an invalid value |
 
-> Sin dependencias externas — usa únicamente la librería estándar de Go.
+> No external dependencies — uses only the Go standard library.
 
 ---
 
-## 3. Como funciona la concurrencia
+## 3. How concurrency works
 
-### 3.1 Division del rango
+### 3.1 Range division
 
-El rango total `[1, límite]` se divide en N partes del mismo tamaño. El último trabajador siempre se queda con el sobrante para no perder ningún número:
+The total range `[1, limit]` is divided into N equal parts. The last worker always takes the remainder to avoid missing any number:
 
 ```
-Trabajador 1  -->  del 1        al tamano
-Trabajador 2  -->  del tamano+1 al 2*tamano
+Worker 1  -->  from 1        to size
+Worker 2  -->  from size+1   to 2*size
 ...
-Trabajador N  -->  del ...      al limite   (absorbe el sobrante)
+Worker N  -->  from ...      to limit   (absorbs the remainder)
 ```
 
-Por ejemplo, con límite = 1000 y 4 hilos:
-- Hilo 1 cuenta del 1 al 250
-- Hilo 2 cuenta del 251 al 500
-- Hilo 3 cuenta del 501 al 750
-- Hilo 4 cuenta del 751 al 1000
+For example, with limit = 1000 and 4 threads:
+- Thread 1 counts from 1 to 250
+- Thread 2 counts from 251 to 500
+- Thread 3 counts from 501 to 750
+- Thread 4 counts from 751 to 1000
 
-### 3.2 Hilos vs Goroutines
+### 3.2 Threads vs Goroutines
 
-| Característica | Java — `Thread` | Go — `goroutine` |
+| Feature | Java — `Thread` | Go — `goroutine` |
 |---------------|-----------------|------------------|
-| Peso en memoria | ~1 MB de stack por hilo | ~2 KB de stack inicial (crece si necesita) |
-| Cómo se crea | `new Thread(() -> ...).start()` | `go nombreFuncion(...)` |
-| Quién los gestiona | La JVM delega al sistema operativo | El runtime de Go con scheduler propio (M:N) |
-| Cómo se espera | `hilo.join()` | `waitGroup.Wait()` |
-| Cuántos se pueden crear fácilmente | Miles (limitado por RAM) | Millones (muy ligeras) |
+| Memory footprint | ~1 MB stack per thread | ~2 KB initial stack (grows if needed) |
+| How to create | `new Thread(() -> ...).start()` | `go functionName(...)` |
+| Who manages them | JVM delegates to the OS | Go runtime with its own scheduler (M:N) |
+| How to wait | `thread.join()` | `waitGroup.Wait()` |
+| How many can easily be created | Thousands (RAM limited) | Millions (very lightweight) |
 
-Las goroutines son mucho más ligeras que los hilos del SO. En este programa la diferencia no es tan notoria porque son pocos trabajadores, pero en aplicaciones con muchos trabajadores concurrentes Go escala mejor.
+Goroutines are much lighter than OS threads. In this program the difference is not very noticeable because there are few workers, but in applications with many concurrent workers Go scales better.
 
-### 3.3 Conteo atomico sin bloqueos
+### 3.3 Lock-free atomic counting
 
-Cuando varios hilos intentan sumar al mismo contador al mismo tiempo, puede haber errores de concurrencia. La solución clásica es usar `synchronized` (Java) o `mutex` (Go), pero eso genera colas y lentitud.
+When multiple threads try to add to the same counter at the same time, concurrency errors can occur. The classic solution is to use `synchronized` (Java) or `mutex` (Go), but that creates queues and slowdowns.
 
-En cambio, ambas versiones usan operaciones **CAS** (Compare-And-Swap), que son instrucciones directas del procesador: intentan actualizar el valor y si alguien más lo cambió antes, reintenta. Esto es más rápido que bloquear.
+Instead, both versions use **CAS** (Compare-And-Swap) operations, which are direct processor instructions: they try to update the value and if someone else changed it first, they retry. This is faster than locking.
 
 ```java
-// Java — modo resumen (suma todo el bloque de una vez)
+// Java — summary mode (adds the whole block at once)
 contadorTotal.addAndGet(cantidadNumeros);
 
-// Java — modo detallado (suma de a uno)
+// Java — detailed mode (adds one by one)
 contadorTotal.incrementAndGet();
 ```
 
 ```go
-// Go — modo resumen
+// Go — summary mode
 atomic.AddInt64(&contadorTotal, cantidadNumeros)
 
-// Go — modo detallado
+// Go — detailed mode
 atomic.AddInt64(&contadorTotal, 1)
 ```
 
-### 3.4 Esperar a que todos terminen
+### 3.4 Waiting for all workers to finish
 
-El hilo/goroutine principal no puede mostrar el resultado hasta que todos los trabajadores terminen. Cada lenguaje tiene su forma de hacer esto:
+The main thread/goroutine cannot show the result until all workers are done. Each language has its own way of doing this:
 
 ```java
-// Java: espera hilo por hilo
+// Java: waits thread by thread
 for (Thread hilo : hilos) {
     hilo.join();
 }
 ```
 
 ```go
-// Go: cada goroutine avisa cuando termina con Done(),
-// y el main espera con Wait()
-defer grupo.Done()   // al inicio de cada goroutine
-grupo.Wait()         // en el main, espera hasta que todas llamen Done()
+// Go: each goroutine signals when done with Done(),
+// and main waits with Wait()
+defer grupo.Done()   // at the start of each goroutine
+grupo.Wait()         // in main, waits until all call Done()
 ```
 
 ---
 
-## 4. Funciones de cada version
+## 4. Functions in each version
 
-| Función | Java | Go | Qué hace |
+| Function | Java | Go | What it does |
 |---------|------|----|----------|
-| Pedir número | `pedirNumero(Scanner, String, long, long)` | `pedirNumero(string, int64, int64)` | Lee un número por consola y valida que esté en el rango permitido |
-| Contar segmento | `contarSegmento(int, long, long, boolean, AtomicLong)` | `contarSegmento(int, int64, int64, bool, *int64, *WaitGroup)` | Lógica que ejecuta cada hilo/goroutine para contar su segmento |
-| Principal | `main(String[])` | `main()` | Lee parámetros, crea los trabajadores, espera que terminen y muestra el resultado |
+| Read number | `pedirNumero(Scanner, String, long, long)` | `pedirNumero(string, int64, int64)` | Reads a number from console and validates it is within the allowed range |
+| Count segment | `contarSegmento(int, long, long, boolean, AtomicLong)` | `contarSegmento(int, int64, int64, bool, *int64, *WaitGroup)` | Logic executed by each thread/goroutine to count its segment |
+| Entry point | `main(String[])` | `main()` | Reads parameters, creates workers, waits for them to finish and shows the result |
 
 ---
 
-## 5. Tabla comparativa Java vs Go
+## 5. Java vs Go comparison table
 
-Esta tabla compara los dos lenguajes en términos técnicos y de resultados observados al ejecutar el programa.
+This table compares both languages in technical terms and observed results when running the program.
 
-### Comparacion tecnica
+### Technical comparison
 
-| Aspecto | Java | Go |
+| Aspect | Java | Go |
 |---------|------|----|
-| Unidad de concurrencia | `Thread` (hilo del SO) | `goroutine` (hilo verde del runtime) |
-| Memoria por trabajador | ~1 MB de stack | ~2 KB de stack inicial |
-| Operación atómica usada | `AtomicLong.addAndGet()` | `atomic.AddInt64()` |
-| Mecanismo de espera | `Thread.join()` | `sync.WaitGroup` |
-| Arranque de trabajadores | `hilo.start()` | `go funcion()` |
-| Scheduler | Sistema operativo | Runtime de Go (M:N, multiplexado) |
-| Sintaxis concurrente | Verbosa (clase Thread, lambda) | Muy simple (`go` + función) |
-| Tiempo de inicio del programa | ~200-400 ms (JVM warmup) | ~5-20 ms (binario nativo) |
+| Unit of concurrency | `Thread` (OS thread) | `goroutine` (runtime green thread) |
+| Memory per worker | ~1 MB stack | ~2 KB initial stack |
+| Atomic operation used | `AtomicLong.addAndGet()` | `atomic.AddInt64()` |
+| Waiting mechanism | `Thread.join()` | `sync.WaitGroup` |
+| Starting workers | `thread.start()` | `go function()` |
+| Scheduler | Operating system | Go runtime (M:N, multiplexed) |
+| Concurrent syntax | Verbose (Thread class, lambda) | Very simple (`go` + function) |
+| Program startup time | ~200-400 ms (JVM warmup) | ~5-20 ms (native binary) |
 
-### Comparacion de resultados — modo resumen
+### Results comparison — summary mode
 
-Los tiempos son aproximados y varían según el hardware. Pruebas realizadas con límite = 1.000.000.000 (mil millones).
+Times are approximate and vary by hardware. Tests run with limit = 1,000,000,000 (one billion).
 
-| Cantidad de hilos | Tiempo Java (ms) | Tiempo Go (ms) | Diferencia |
+| Number of threads | Java time (ms) | Go time (ms) | Difference |
 |:-----------------:|:----------------:|:--------------:|:----------:|
-| 1 hilo | ~8 ms | ~3 ms | Go ~2.5x más rápido |
-| 2 hilos | ~6 ms | ~2 ms | Go ~3x más rápido |
-| 4 hilos | ~5 ms | ~2 ms | Go ~2.5x más rápido |
-| 8 hilos | ~5 ms | ~2 ms | Go ~2.5x más rápido |
+| 1 thread | ~8 ms | ~3 ms | Go ~2.5x faster |
+| 2 threads | ~6 ms | ~2 ms | Go ~3x faster |
+| 4 threads | ~5 ms | ~2 ms | Go ~2.5x faster |
+| 8 threads | ~5 ms | ~2 ms | Go ~2.5x faster |
 
-> Nota: En modo resumen no hay iteración real (cada hilo suma su bloque de una vez con `addAndGet`), por lo que los tiempos son muy bajos en ambos lenguajes. La diferencia principal es el tiempo de inicio de la JVM.
+> Note: In summary mode there is no real iteration (each thread adds its block at once with `addAndGet`), so times are very low in both languages. The main difference is JVM startup time.
 
-### Comparacion de resultados — modo detallado
+### Results comparison — detailed mode
 
-En modo detallado sí hay iteración número a número. El cuello de botella es la escritura en consola (I/O), no el CPU.
+In detailed mode there is actual number-by-number iteration. The bottleneck is console I/O, not the CPU.
 
-| Cantidad de hilos | Límite | Tiempo Java | Tiempo Go | Diferencia |
+| Number of threads | Limit | Java time | Go time | Difference |
 |:-----------------:|:------:|:-----------:|:---------:|:----------:|
-| 2 hilos | 1.000.000 | **101.503 s** | **14.483 s** | Go es **~7x más rápido** |
+| 2 threads | 1,000,000 | **101.503 s** | **14.483 s** | Go is **~7x faster** |
 
-> Prueba ejecutada en modo detallado (número a número con impresión por consola), 2 hilos, límite = 1.000.000. Resultados reales medidos en la misma máquina.
+> Test run in detailed mode (number by number with console output), 2 threads, limit = 1,000,000. Real results measured on the same machine.
 
-Aumentar hilos en modo detallado ayuda poco porque el I/O de consola es el verdadero cuello de botella, no el procesamiento.
+Adding more threads in detailed mode helps little because the console I/O is the true bottleneck, not the processing.
 
-### Mediciones experimentales — modo detallado (escala creciente)
+### Experimental measurements — detailed mode (increasing scale)
 
-Pruebas realizadas incrementando simultáneamente el número de hilos y el límite de conteo, todas en **modo detallado** (impresión número a número por consola).
+Tests run by simultaneously increasing the number of threads and the count limit, all in **detailed mode** (number-by-number console output).
 
-| Cantidad de hilos | Límite | Tiempo Java (s) | Tiempo Go (s) | Observación |
+| Number of threads | Limit | Java time (s) | Go time (s) | Observation |
 |:-----------------:|:------:|:---------------:|:-------------:|-------------|
-| 2 | 10.000 | 0.585 | 0.009 | Go ~65x más rápido |
-| 2 | 100.000 | 4.662 | 0.509 | Go ~9x más rápido |
-| 10 | 1.000.000 | 48.585 | 5.820 | Go ~8x más rápido |
-| 15 | 50.000.000 | ⚠️ No fue posible completarlo | 387.185 | Java cerró el editor de código |
-| 250 | 50.000.000 | ⚠️ No fue posible completarlo | 377.922 | Java cerró el editor de código |
+| 2 | 10,000 | 0.585 | 0.009 | Go ~65x faster |
+| 2 | 100,000 | 4.662 | 0.509 | Go ~9x faster |
+| 10 | 1,000,000 | 48.585 | 5.820 | Go ~8x faster |
+| 15 | 50,000,000 | ⚠️ Could not be completed | 387.185 | Java crashed the code editor |
+| 250 | 50,000,000 | ⚠️ Could not be completed | 377.922 | Java crashed the code editor |
 
-> ⚠️ **Nota sobre las entradas con Java:** Con límite = 50.000.000, Java no logró completar la ejecución en ninguna de las dos configuraciones (15 y 250 hilos). En ambos casos el editor de código (VS Code) se cerró inesperadamente, probablemente por agotamiento de memoria RAM o de descriptores de archivo del sistema operativo, consecuencia del volumen de salida por consola y la carga de hilos del SO mantenida durante un tiempo prolongado.
+> ⚠️ **Note on Java entries:** With limit = 50,000,000, Java failed to complete execution in either configuration (15 and 250 threads). In both cases VS Code closed unexpectedly, likely due to RAM exhaustion or OS file descriptor exhaustion, caused by the volume of console output and the OS thread load sustained over a long period.
 
-#### Conclusión de las mediciones experimentales
+#### Conclusions from the experimental measurements
 
-Los datos confirman tres patrones claros:
+The data confirms three clear patterns:
 
-1. **Go es consistentemente más rápido en modo detallado.** La ventaja varía entre ~8x y ~65x dependiendo del límite. La diferencia es mayor con límites pequeños (el overhead de inicio de la JVM pesa más) y se estabiliza en torno a 8–9x con límites grandes.
+1. **Go is consistently faster in detailed mode.** The advantage ranges from ~8x to ~65x depending on the limit. The difference is larger with small limits (JVM startup overhead weighs more) and stabilizes around 8–9x with large limits.
 
-2. **Agregar goroutines apenas reduce el tiempo en Go a límites muy altos.** Con 50.000.000 de números, pasar de 15 a 250 goroutines solo redujo el tiempo de 387 s a 377 s (menos de un 3%). Esto confirma que con tantos números por imprimir el cuello de botella es el I/O de consola, no el procesamiento paralelo.
+2. **Adding goroutines barely reduces time in Go at very high limits.** With 50,000,000 numbers, going from 15 to 250 goroutines only reduced the time from 387 s to 377 s (less than 3%). This confirms that with that many numbers to print the bottleneck is console I/O, not parallel processing.
 
-3. **Java no es viable para modo detallado a gran escala.** El modelo de hilos del SO consume memoria proporcional al número de hilos activos (~1 MB de stack cada uno) y mantiene miles de descriptores de salida abiertos. Al combinarlo con 50.000.000 de líneas por imprimir, la presión sobre la JVM y el sistema operativo termina en un fallo catastrófico que cierra el entorno de desarrollo.
+3. **Java is not viable for detailed mode at large scale.** The OS thread model consumes memory proportional to the number of active threads (~1 MB of stack each) and keeps thousands of output descriptors open. Combined with 50,000,000 lines to print, the pressure on the JVM and OS results in a catastrophic failure that closes the development environment.
 
-### Analisis: por que Java puede superar a Go con muchos hilos
+### Analysis: why Java can outperform Go with many threads
 
-Con configuraciones de **muchos trabajadores y pocos datos por trabajador** (por ejemplo, 10.000 hilos para 1.000.000 de números = 100 números por hilo), se puede observar que Java supera a Go. Esto parece contradictorio, pero tiene una explicación técnica precisa.
+With configurations of **many workers and few data per worker** (e.g., 10,000 threads for 1,000,000 numbers = 100 numbers per thread), Java can outperform Go. This seems contradictory, but has a precise technical explanation.
 
-#### El cuello de botella: syscalls de escritura en consola
+#### The bottleneck: console write syscalls
 
-El problema está en cómo cada lenguaje escribe en la consola a nivel del sistema operativo:
+The problem lies in how each language writes to the console at the OS level:
 
-| Aspecto | Java `System.out.println` | Go `fmt.Printf` (version original) |
+| Aspect | Java `System.out.println` | Go `fmt.Printf` (original version) |
 |---------|--------------------------|--------------------------------------|
-| Buffer en userspace | **Si** — `BufferedOutputStream` de 8 KB | **No** — escribe directo al SO |
-| Llamadas al SO por 1.000.000 prints | Pocas (el buffer agrupa escrituras) | ~1.000.000 syscalls individuales |
-| Contención entre hilos | Sincronizado en el buffer (eficiente) | Cada goroutine compite por stdout |
+| Userspace buffer | **Yes** — 8 KB `BufferedOutputStream` | **No** — writes directly to the OS |
+| OS calls per 1,000,000 prints | Few (buffer batches writes) | ~1,000,000 individual syscalls |
+| Contention between threads | Synchronized on the buffer (efficient) | Each goroutine competes for stdout |
 
-**Java usa un buffer interno de 8 KB:** las llamadas a `println` acumulan texto en memoria y solo hacen una syscall al SO cuando el buffer se llena. Con 10.000 hilos imprimiendo 100 números cada uno, el número total de syscalls es muy bajo.
+**Java uses an internal 8 KB buffer:** calls to `println` accumulate text in memory and only make a syscall to the OS when the buffer fills up. With 10,000 threads printing 100 numbers each, the total number of syscalls is very low.
 
-**Go (versión original) no tiene buffer:** cada `fmt.Printf` llama directamente a `write()` del sistema operativo. Con 1.000.000 de números a imprimir, esto genera cerca de 1.000.000 de syscalls individuales, lo que degrada el rendimiento enormemente con muchos trabajadores.
+**Go (original version) has no buffer:** each `fmt.Printf` calls `write()` directly on the OS. With 1,000,000 numbers to print, this generates nearly 1,000,000 individual syscalls, which severely degrades performance with many workers.
 
-#### Factores adicionales que favorecen a Java en este escenario
+#### Additional factors that favor Java in this scenario
 
-1. **Optimización JIT:** Con 10.000 hilos activos, la JVM tiene tiempo de compilar el código del hilo caliente a código nativo optimizado. El bucle de impresión de 100 números se vuelve muy eficiente tras el warmup.
-2. **Scheduler del SO para I/O:** Cuando un hilo Java queda bloqueado esperando el buffer, el SO lo pone en espera de forma eficiente. Con 10.000 OS-threads en cola, el kernel los gestiona bien para I/O serializado.
-3. **Overhead de goroutines con trabajo trivial:** Con solo 100 números por goroutine, el overhead del scheduler M:N de Go (crear, programar y destruir 10.000 goroutines) puede superar el beneficio de su ligereza.
+1. **JIT optimization:** With 10,000 active threads, the JVM has time to compile the hot thread code to optimized native code. The 100-number print loop becomes very efficient after warmup.
+2. **OS scheduler for I/O:** When a Java thread blocks waiting on the buffer, the OS efficiently suspends it. With 10,000 OS threads queued, the kernel manages them well for serialized I/O.
+3. **Goroutine overhead with trivial work:** With only 100 numbers per goroutine, the overhead of Go's M:N scheduler (creating, scheduling, and destroying 10,000 goroutines) can outweigh the benefit of their lightness.
 
-#### La correccion aplicada al codigo Go
+#### The fix applied to the Go code
 
-Se realizaron tres cambios en `src/go/contador_paralelo.go`:
+Three changes were made in `src/go/contador_paralelo.go`:
 
-**1. Nueva dependencia importada: `bufio`**
+**1. New imported dependency: `bufio`**
 
 ```go
 import (
-    "bufio"   // <-- añadido
+    "bufio"   // <-- added
     "fmt"
     "os"
     "sync"
@@ -276,89 +276,89 @@ import (
 )
 ```
 
-**2. Nueva firma de `contarSegmento`: recibe el escritor y su mutex**
+**2. New signature for `contarSegmento`: receives the writer and its mutex**
 
 ```go
-// ANTES
-func contarSegmento(numeroGoroutine int, inicio, fin int64,
-    modoDetallado bool, contadorTotal *int64, grupo *sync.WaitGroup)
+// BEFORE
+func contarSegmento(goroutineNumber int, start, end int64,
+    detailedMode bool, totalCounter *int64, group *sync.WaitGroup)
 
-// DESPUES
-func contarSegmento(numeroGoroutine int, inicio, fin int64,
-    modoDetallado bool, contadorTotal *int64,
-    escritor *bufio.Writer, mutexEscritor *sync.Mutex,
-    grupo *sync.WaitGroup)
+// AFTER
+func contarSegmento(goroutineNumber int, start, end int64,
+    detailedMode bool, totalCounter *int64,
+    writer *bufio.Writer, writerMutex *sync.Mutex,
+    group *sync.WaitGroup)
 ```
 
-El cuerpo en modo detallado ahora acumula en memoria y hace una sola escritura:
+The body in detailed mode now accumulates in memory and makes a single write:
 
 ```go
-// ANTES (una syscall por cada número → ~1.000.000 syscalls)
-for numero := inicio; numero <= fin; numero++ {
-    atomic.AddInt64(contadorTotal, 1)
-    fmt.Printf("  [Goroutine-%d] --> %d\n", numeroGoroutine, numero)
+// BEFORE (one syscall per number → ~1,000,000 syscalls)
+for number := start; number <= end; number++ {
+    atomic.AddInt64(totalCounter, 1)
+    fmt.Printf("  [Goroutine-%d] --> %d\n", goroutineNumber, number)
 }
 
-// DESPUES (construye en []byte local, una escritura al final)
-buf := make([]byte, 0, cantidadNumeros*30)
-for numero := inicio; numero <= fin; numero++ {
-    atomic.AddInt64(contadorTotal, 1)
-    buf = fmt.Appendf(buf, "  [Goroutine-%d] --> %d\n", numeroGoroutine, numero)
+// AFTER (builds in local []byte, one write at the end)
+buf := make([]byte, 0, count*30)
+for number := start; number <= end; number++ {
+    atomic.AddInt64(totalCounter, 1)
+    buf = fmt.Appendf(buf, "  [Goroutine-%d] --> %d\n", goroutineNumber, number)
 }
-mutexEscritor.Lock()
-escritor.Write(buf)   // una sola llamada con el mutex tomado
-mutexEscritor.Unlock()
+writerMutex.Lock()
+writer.Write(buf)   // single call with the mutex held
+writerMutex.Unlock()
 ```
 
-**3. En `main`: crear el escritor compartido y llamar `Flush()` al final**
+**3. In `main`: create the shared writer and call `Flush()` at the end**
 
 ```go
-// Escritor con buffer de 1 MB compartido entre todas las goroutines
-escritor := bufio.NewWriterSize(os.Stdout, 1024*1024)
-var mutexEscritor sync.Mutex
+// Writer with 1 MB buffer shared between all goroutines
+writer := bufio.NewWriterSize(os.Stdout, 1024*1024)
+var writerMutex sync.Mutex
 
-// Al lanzar cada goroutine se le pasan el escritor y el mutex:
-go contarSegmento(numeroGoroutine, inicio, fin, modoDetallado,
-    &contadorTotal, escritor, &mutexEscritor, &grupo)
+// When launching each goroutine, pass the writer and mutex:
+go contarSegmento(goroutineNumber, start, end, detailedMode,
+    &totalCounter, writer, &writerMutex, &group)
 
-// Después de grupo.Wait(), vaciar el buffer al SO:
-escritor.Flush()
+// After group.Wait(), flush the buffer to the OS:
+writer.Flush()
 ```
 
-Con estos tres cambios, el número de syscalls se reduce de ~1.000.000 a unas pocas docenas, independientemente de cuántas goroutines haya.
+With these three changes, the number of syscalls is reduced from ~1,000,000 to a few dozen, regardless of how many goroutines there are.
 
 ### Conclusion
 
-La diferencia más llamativa entre los dos lenguajes se ve en el **modo detallado con impresión por consola**:
+The most striking difference between the two languages is seen in **detailed mode with console output**:
 
-- **Java tardó 101.503 segundos** para imprimir 1.000.000 de números con 2 hilos.
-- **Go tardó 14.483 segundos** para el mismo trabajo (versión original) — aproximadamente **7 veces más rápido** con pocos hilos.
-- **Con la corrección de bufio aplicada**, Go debería mantener su ventaja incluso con 10.000 goroutines.
+- **Java took 101.503 seconds** to print 1,000,000 numbers with 2 threads.
+- **Go took 14.483 seconds** for the same task (original version) — approximately **7 times faster** with few threads.
+- **With the bufio fix applied**, Go should maintain its advantage even with 10,000 goroutines.
 
-Por qué Java podía ganar con 10.000 hilos y la versión original de Go:
+Why Java could win with 10,000 threads and the original Go version:
 
-1. **Java tiene buffer de I/O por defecto** (`BufferedOutputStream` de 8 KB en `System.out`).
-2. **Go original no tenía buffer:** cada `fmt.Printf` hacía una syscall individual, generando ~1.000.000 de syscalls.
-3. **La solución** es usar `bufio.Writer` + buffer por goroutine en Go para igualar o superar a Java.
+1. **Java has I/O buffering by default** (8 KB `BufferedOutputStream` in `System.out`).
+2. **Original Go had no buffer:** each `fmt.Printf` made an individual syscall, generating ~1,000,000 syscalls.
+3. **The solution** is to use `bufio.Writer` + per-goroutine buffer in Go to match or beat Java.
 
-En el **modo resumen** (sin impresión número a número) la diferencia es mínima, porque el conteo se hace con una sola operación atómica por hilo y no hay I/O intensivo. Ahí Java y Go son prácticamente equivalentes.
+In **summary mode** (no number-by-number printing) the difference is minimal, because counting is done with a single atomic operation per thread and there is no intensive I/O. There Java and Go are practically equivalent.
 
-**Conclusion general:** La ventaja de Go sobre Java no es automática; depende de usar correctamente las herramientas de I/O con buffer. Con `bufio.Writer`, Go recupera su ventaja en todos los escenarios. Además, las mediciones experimentales a escala (hasta 50.000.000 de números) demostraron que Java no es viable para modo detallado a gran escala: en ambas pruebas con ese límite, la JVM colapsó y cerró el editor, mientras que Go completó la tarea en ambos casos, aunque con tiempos elevados (~6.5 minutos) dominados por el I/O y no por el procesamiento paralelo.
+**General conclusion:** Go's advantage over Java is not automatic; it depends on correctly using buffered I/O tools. With `bufio.Writer`, Go recovers its advantage in all scenarios. Furthermore, experimental measurements at scale (up to 50,000,000 numbers) showed that Java is not viable for detailed mode at large scale: in both tests with that limit, the JVM crashed and closed the editor, while Go completed the task in both cases, albeit with high times (~6.5 minutes) dominated by I/O rather than parallel processing.
 
-### Cuando usar cada uno
+### When to use each one
 
-| Situación | Recomendado |
+| Situation | Recommended |
 |-----------|-------------|
-| Procesamiento con mucho I/O de consola o archivos | Go |
-| Proyecto académico o empresarial con ecosistema Java | Java |
-| Necesitas el menor tiempo de inicio posible | Go |
-| Muchos trabajadores concurrentes (miles) | Go (goroutines son más ligeras) |
-| Pocos hilos con lógica compleja | Java o Go (similar) |
-| Equipo ya familiarizado con la JVM | Java |
+| Processing with heavy console or file I/O | Go |
+| Academic or enterprise project with Java ecosystem | Java |
+| Need the lowest possible startup time | Go |
+| Many concurrent workers (thousands) | Go (goroutines are lighter) |
+| Few threads with complex logic | Java or Go (similar) |
+| Team already familiar with the JVM | Java |
 
 ---
 
-## 6. Estructura del proyecto
+## 6. Project structure
 
 ```
 Conteo_Numeros_50.000M/
@@ -373,11 +373,11 @@ Conteo_Numeros_50.000M/
 
 ---
 
-## 7. Compilar y ejecutar
+## 7. Build and run
 
-### 7.1 Script principal run.bat
+### 7.1 Main script run.bat
 
-El archivo `run.bat` muestra un menú para elegir qué versión ejecutar:
+The `run.bat` file shows a menu to choose which version to run:
 
 ```
 run.bat
@@ -385,127 +385,127 @@ run.bat
 
 ```
 ============================================
-  ContadorParalelo -- Selector de lenguaje
+  ContadorParalelo -- Language Selector
 ============================================
 
  [1]  Java   (Threads + AtomicLong)
  [2]  Go     (Goroutines + sync/atomic)
- [3]  Ambos  (Java primero, luego Go)
- [0]  Salir
+ [3]  Both   (Java first, then Go)
+ [0]  Exit
 
-Elige una opcion:
+Choose an option:
 ```
 
-> Requiere tener el **JDK** y **Go** instalados y disponibles en el PATH del sistema.
+> Requires the **JDK** and **Go** to be installed and available in the system PATH.
 
-### 7.2 Java manualmente
+### 7.2 Java manually
 
 ```bash
-# Paso 1: compilar
+# Step 1: compile
 javac src/java/ContadorParalelo.java -d out
 
-# Paso 2: ejecutar
+# Step 2: run
 java -cp out ContadorParalelo
 ```
 
-### 7.3 Go manualmente
+### 7.3 Go manually
 
 ```bash
-# Opcion A: ejecutar directo sin compilar
+# Option A: run directly without compiling
 go run src/go/contador_paralelo.go
 
-# Opcion B: compilar y luego ejecutar
+# Option B: compile and then run
 go build -o contador src/go/contador_paralelo.go
 ./contador
 ```
 
 ---
 
-## 8. Parametros del programa
+## 8. Program parameters
 
-Ambas versiones piden los mismos tres datos al ejecutarse:
+Both versions ask for the same three inputs at runtime:
 
-| # | Parámetro | Valores válidos | Descripción |
+| # | Parameter | Valid values | Description |
 |:-:|-----------|:---------------:|-------------|
-| 1 | Número final | 1 a 50.000.000.000 | Hasta qué número se va a contar |
-| 2 | Cantidad de hilos / goroutines | 1 en adelante | Cuántos trabajadores paralelos se usan |
-| 3 | Modo | 1 o 2 | `1` = resumen (una línea por hilo) / `2` = detallado (número a número) |
+| 1 | Final number | 1 to 50,000,000,000 | Up to which number to count |
+| 2 | Number of threads / goroutines | 1 or more | How many parallel workers are used |
+| 3 | Mode | 1 or 2 | `1` = summary (one line per thread) / `2` = detailed (number by number) |
 
 ---
 
-## 9. Ejemplos de salida
+## 9. Output examples
 
-### 9.1 Modo resumen
+### 9.1 Summary mode
 
-**Java — 4 hilos, límite = 1000**
-
-```
-Número final (1 - 50.000.000.000): 1000
-Cantidad de hilos: 4
-Modo (1 = resumen | 2 = número a número): 1
-
-Contando del 1 al 1000 usando 4 hilo(s)...
-
-  Hilo-1: del 1 al 250  (250 números)
-  Hilo-2: del 251 al 500  (250 números)
-  Hilo-3: del 501 al 750  (250 números)
-  Hilo-4: del 751 al 1000  (250 números)
-
---- Resultado ---
-Total contado  : 1000
-Tiempo de mora : 3 ms (0.003 s)
-```
-
-**Go — 4 goroutines, límite = 1000**
+**Java — 4 threads, limit = 1000**
 
 ```
-Número final (1 - 50.000.000.000): 1000
-Cantidad de goroutines: 4
-Modo (1 = resumen | 2 = número a número): 1
+Final number (1 - 50,000,000,000): 1000
+Number of threads: 4
+Mode (1 = summary | 2 = number by number): 1
 
-Contando del 1 al 1000 usando 4 goroutine(s)...
+Counting from 1 to 1000 using 4 thread(s)...
 
-  Goroutine-1: del 1 al 250  (250 números)
-  Goroutine-2: del 251 al 500  (250 números)
-  Goroutine-3: del 501 al 750  (250 números)
-  Goroutine-4: del 751 al 1000  (250 números)
+  Thread-1: from 1 to 250  (250 numbers)
+  Thread-2: from 251 to 500  (250 numbers)
+  Thread-3: from 501 to 750  (250 numbers)
+  Thread-4: from 751 to 1000  (250 numbers)
 
---- Resultado ---
-Total contado  : 1000
-Tiempo de mora : 1 ms (0.001 s)
+--- Result ---
+Total counted  : 1000
+Elapsed time   : 3 ms (0.003 s)
 ```
 
-### 9.2 Modo detallado
-
-**Java — 2 hilos, límite = 6**
+**Go — 4 goroutines, limit = 1000**
 
 ```
-Número final (1 - 50.000.000.000): 6
-Cantidad de hilos: 2
-Modo (1 = resumen | 2 = número a número): 2
+Final number (1 - 50,000,000,000): 1000
+Number of goroutines: 4
+Mode (1 = summary | 2 = number by number): 1
 
-Contando del 1 al 6 usando 2 hilo(s)...
+Counting from 1 to 1000 using 4 goroutine(s)...
 
-  [Hilo-1] --> 1
-  [Hilo-1] --> 2
-  [Hilo-1] --> 3
-  [Hilo-2] --> 4
-  [Hilo-2] --> 5
-  [Hilo-2] --> 6
+  Goroutine-1: from 1 to 250  (250 numbers)
+  Goroutine-2: from 251 to 500  (250 numbers)
+  Goroutine-3: from 501 to 750  (250 numbers)
+  Goroutine-4: from 751 to 1000  (250 numbers)
 
---- Resultado ---
-Total contado  : 6
-Tiempo de mora : 5 ms (0.005 s)
+--- Result ---
+Total counted  : 1000
+Elapsed time   : 1 ms (0.001 s)
 ```
 
-**Go — 2 goroutines, límite = 6**
+### 9.2 Detailed mode
+
+**Java — 2 threads, limit = 6**
 
 ```
-Número final (1 - 50.000.000.000): 6
-Cantidad de goroutines: 2
-Modo (1 = resumen | 2 = número a número): 2
+Final number (1 - 50,000,000,000): 6
+Number of threads: 2
+Mode (1 = summary | 2 = number by number): 2
 
-Contando del 1 al 6 usando 2 goroutine(s)...
+Counting from 1 to 6 using 2 thread(s)...
+
+  [Thread-1] --> 1
+  [Thread-1] --> 2
+  [Thread-1] --> 3
+  [Thread-2] --> 4
+  [Thread-2] --> 5
+  [Thread-2] --> 6
+
+--- Result ---
+Total counted  : 6
+Elapsed time   : 5 ms (0.005 s)
+```
+
+**Go — 2 goroutines, limit = 6**
+
+```
+Final number (1 - 50,000,000,000): 6
+Number of goroutines: 2
+Mode (1 = summary | 2 = number by number): 2
+
+Counting from 1 to 6 using 2 goroutine(s)...
 
   [Goroutine-1] --> 1
   [Goroutine-1] --> 2
@@ -514,7 +514,7 @@ Contando del 1 al 6 usando 2 goroutine(s)...
   [Goroutine-2] --> 5
   [Goroutine-2] --> 6
 
---- Resultado ---
-Total contado  : 6
-Tiempo de mora : 2 ms (0.002 s)
+--- Result ---
+Total counted  : 6
+Elapsed time   : 2 ms (0.002 s)
 ```
